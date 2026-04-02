@@ -19,6 +19,12 @@ EVALUATE="${EVALUATE:-True}"  # Whether to evaluate answers
 # Method-specific configuration (optional)
 METHOD_CONFIG="${METHOD_CONFIG:-}"
 
+# Domain filter (optional)
+# Set to one or more space-separated values to restrict evaluation to specific domains.
+# Available: embodied_ai  game  text2sql  openworld_qa  web  software_engineering
+# Example: DOMAIN="game web" bash scripts/run.sh
+DOMAIN="${DOMAIN:-}"
+
 # Build arguments
 ARGS=(
   --llm-server "$LLM_SERVER"
@@ -39,8 +45,15 @@ if [ -n "$METHOD_CONFIG" ]; then
   ARGS+=(--method-config "$METHOD_CONFIG")
 fi
 
+# Add domain filter if provided
+if [ -n "$DOMAIN" ]; then
+  # shellcheck disable=SC2086
+  ARGS+=(--domain $DOMAIN)
+fi
+
 # Run evaluation with LLM-as-Judge
 echo "Running OpenEnd evaluation with method: $METHOD"
 echo "LLM-as-Judge: $JUDGE_SERVER (config: $JUDGE_CONFIG)"
 echo "Evaluate: $EVALUATE"
+[ -n "$DOMAIN" ] && echo "Domain filter: $DOMAIN"
 python src/run.py "${ARGS[@]}"

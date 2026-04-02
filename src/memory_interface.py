@@ -1,15 +1,17 @@
-import json
 import asyncio
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from tqdm import tqdm
 
-from src.model_client import ModelClient
-from src.method_register import get_method, list_methods
 from src.method.base_method import BaseMethod
-from utils.extract_final_answer import extract_final_answer
+from src.method_register import get_method, list_methods
+from src.model_client import ModelClient
 from utils.embedding import EmbeddingEngine
+from utils.extract_final_answer import extract_final_answer
+
 
 class MemoryQAInterface:
     """
@@ -20,6 +22,16 @@ class MemoryQAInterface:
     2. answer_question(question, memory) - Answer question using memory
     """
 
+    # Maps user-facing CLI domain names to the values stored in the dataset
+    _DOMAIN_MAP = {
+        "embodied_ai": "EMBODIED_AI",
+        "game": "Game",
+        "text2sql": "TEXT2SQL",
+        "openworld_qa": "OPENWORLD_QA",
+        "web": "WEB",
+        "software_engineering": "SOFTWARE",
+    }
+
     def __init__(
         self,
         client: ModelClient,
@@ -29,6 +41,7 @@ class MemoryQAInterface:
         max_concurrency_questions: int = 1,
         subset: str = "mcq",
         embedding_engine: Optional[EmbeddingEngine] = None,
+        domains: Optional[List[str]] = None,
     ):
         """
         Initialize QA interface.
@@ -41,6 +54,8 @@ class MemoryQAInterface:
             max_concurrency_questions: Max number of questions per episode to process concurrently
             subset: Dataset subset type ("mcq" or "openend") for answer format
             embedding_engine: Optional embedding engine for semantic embedding
+            domains: Optional list of domain names to filter episodes (e.g. ["game", "web"]).
+                     Accepts the CLI-friendly names defined in _DOMAIN_MAP. None = all domains.
         """
         self.client = client
         self.method_name = method_name
@@ -51,21 +66,23 @@ class MemoryQAInterface:
         self.subset = subset
         self.max_tokens = client.config.get('max_tokens', 4096)
         self.embedding_engine = embedding_engine
+        # Resolve CLI domain names to dataset domain strings (case-insensitive set)
+        if domains:
+            self.domain_filter: Optional[set] = {
+                self._DOMAIN_MAP[d.lower()] for d in domains
+            }
+        else:
+            self.domain_filter = None
 
         if method_config:
-            self.method = get_method(
-                self.method_name,
-                config_path=method_config,
-                client=client,
-                embedding_engine=embedding_engine
-            )
+            self.method = get_method(self.method_name,
+                                     config_path=method_config,
+                                     client=client,
+                                     embedding_engine=embedding_engine)
         else:
-            self.method = get_method(
-                self.method_name,
-                client=client,
-                embedding_engine=embedding_engine
-            )
-
+            self.method = get_method(self.method_name,
+                                     client=client,
+                                     embedding_engine=embedding_engine)
 
     def _trajectory_to_text(self, trajectory: List[Dict[str, Any]]) -> str:
         """
@@ -90,7 +107,8 @@ class MemoryQAInterface:
 
         return "\n".join(text_parts)
 
-    def memory_construction(self, trajectory: List[Dict[str, Any]], task: str) -> Any:
+    def memory_construction(self, trajectory: List[Dict[str, Any]],
+                            task: str) -> Any:
         """
         Build memory from trajectory using the registered method.
 
@@ -112,7 +130,10 @@ class MemoryQAInterface:
 
         return memory
 
-    def answer_question(self, question: str, memory: Any, temperature: float = 0.0) -> Dict[str, str]:
+    def answer_question(self,
+                        question: str,
+                        memory: Any,
+                        temperature: float = 0.0) -> Dict[str, str]:
         """
         Answer a question using the memory.
 
@@ -146,8 +167,10 @@ where X is the correct option letter (A, B, C, or D)."""
 Answer:"""
 
         # Step 4: Query the LLM with max_tokens from config
-        response = self.client.query(prompt, temperature=temperature, max_tokens=self.max_tokens)
-        
+        response = self.client.query(prompt,
+                                     temperature=temperature,
+                                     max_tokens=self.max_tokens)
+
         # Step 5: Extract final answer
         final_answer = extract_final_answer(response)
 
@@ -155,14 +178,17 @@ Answer:"""
             'final_answer': final_answer,
             'reasoning_trace': retrieved_context,
         }
-    
 
-    def _answer_question_with_index(self, question: str, memory: Any, qa_index: int) -> tuple:
+    def _answer_question_with_index(self, question: str, memory: Any,
+                                    qa_index: int) -> tuple:
         """Helper method for parallel question answering."""
         result = self.answer_question(question, memory)
         return qa_index, result
 
-    def answer_all_questions_batch(self, questions: List[str], memory: Any, temperature: float = 0.0) -> List[str]:
+    def answer_all_questions_batch(self,
+                                   questions: List[str],
+                                   memory: Any,
+                                   temperature: float = 0.0) -> List[str]:
         """
         Answer all questions in a single batch call (for longcontext method).
 
@@ -184,10 +210,8 @@ Answer:"""
             answer_format = "For each question, provide your answer in the format: ###Answer N: [your answer] where N is the question number."
 
         # Build batch prompt
-        questions_text = "\n\n".join([
-            f"Question {i+1}: {q}"
-            for i, q in enumerate(questions)
-        ])
+        questions_text = "\n\n".join(
+            [f"Question {i+1}: {q}" for i, q in enumerate(questions)])
 
         prompt = f"""{retrieved_context}
 
@@ -201,7 +225,9 @@ Please answer ALL questions above based on the provided context.
 Answers:"""
 
         # Query LLM once for all questions
-        response = self.client.query(prompt, temperature=temperature, max_tokens=self.max_tokens)
+        response = self.client.query(prompt,
+                                     temperature=temperature,
+                                     max_tokens=self.max_tokens)
 
         # Extract answers
         answer_list = []
@@ -213,7 +239,8 @@ Answers:"""
             if match:
                 answer_text = match.group(1).strip()
                 # Extract just the final answer part
-                final_answer = extract_final_answer(f"###Answer: {answer_text}")
+                final_answer = extract_final_answer(
+                    f"###Answer: {answer_text}")
             else:
                 # Fallback: try to extract from response
                 final_answer = extract_final_answer(response)
@@ -244,19 +271,32 @@ Answers:"""
             questions = [qa_pair.get("question", "") for qa_pair in qa_pairs]
             answer_list = self.answer_all_questions_batch(questions, memory)
             reasoning_trace = ""
+        elif self.method_name == "csr":
+            # Sequential answering: CSR requires isolated TTFT measurements;
+            # concurrent probes would share vLLM scheduler resources and
+            # corrupt the per-question TTFT recordings.
+            answer_list = []
+            reasoning_traces = []
+            for i, qa_pair in enumerate(qa_pairs):
+                _, result = self._answer_question_with_index(
+                    qa_pair.get("question", ""), memory, i)
+                answer_list.append(result["final_answer"])
+                reasoning_traces.append(result["reasoning_trace"])
+            reasoning_trace = "\n\n---\n\n".join([
+                f"Q{i+1} Reasoning:\n{trace}"
+                for i, trace in enumerate(reasoning_traces)
+            ])
         else:
             # Original parallel answering: one call per question
             answer_list = []
             reasoning_traces = []
 
-            with ThreadPoolExecutor(max_workers=self.max_concurrency_questions) as executor:
+            with ThreadPoolExecutor(
+                    max_workers=self.max_concurrency_questions) as executor:
                 futures = {
-                    executor.submit(
-                        self._answer_question_with_index,
-                        qa_pair.get("question", ""),
-                        memory,
-                        i
-                    ): i
+                    executor.submit(self._answer_question_with_index,
+                                    qa_pair.get("question", ""), memory, i):
+                    i
                     for i, qa_pair in enumerate(qa_pairs)
                 }
 
@@ -311,24 +351,38 @@ Answers:"""
                 episode_data = json.loads(line.strip())
                 episodes.append(episode_data)
 
+        # Apply domain filter if requested
+        if self.domain_filter is not None:
+            episodes = [e for e in episodes if e.get('domain') in self.domain_filter]
+            print(f"Domain filter: {sorted(self.domain_filter)}")
+
         print(f"Total episodes: {len(episodes)}")
-        print(f"Max concurrency - Episodes: {self.max_concurrency_episodes}, Questions: {self.max_concurrency_questions}")
+        print(
+            f"Max concurrency - Episodes: {self.max_concurrency_episodes}, Questions: {self.max_concurrency_questions}"
+        )
 
         # Process episodes with parallelism
         all_results = []
-        with ThreadPoolExecutor(max_workers=self.max_concurrency_episodes) as executor:
+        with ThreadPoolExecutor(
+                max_workers=self.max_concurrency_episodes) as executor:
             futures = {
-                executor.submit(self.process_episode, episode): episode.get('episode_id', idx)
+                executor.submit(self.process_episode, episode):
+                episode.get('episode_id', idx)
                 for idx, episode in enumerate(episodes)
             }
 
             # Use tqdm for progress bar
-            with tqdm(total=len(episodes), desc="Processing episodes", unit="episode") as pbar:
+            with tqdm(total=len(episodes),
+                      desc="Processing episodes",
+                      unit="episode") as pbar:
                 for future in as_completed(futures):
                     result = future.result()
                     all_results.append(result)
                     pbar.update(1)
-                    pbar.set_postfix({"Episode": result['episode_id'], "Questions": len(result['answer_list'])})
+                    pbar.set_postfix({
+                        "Episode": result['episode_id'],
+                        "Questions": len(result['answer_list'])
+                    })
 
         # Sort results by episode_id to maintain order
         all_results.sort(key=lambda x: x['episode_id'])

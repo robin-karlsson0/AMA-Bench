@@ -1,18 +1,19 @@
 import argparse
-import yaml
 import json
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import yaml
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.memory_interface import MemoryQAInterface
-from src.model_client import ModelClient
-from src.method_register import list_methods
 from src.evaluate import evaluate_batch, print_evaluation_summary
+from src.memory_interface import MemoryQAInterface
+from src.method_register import list_methods
+from src.model_client import ModelClient
 from utils.embedding import EmbeddingEngine
 
 
@@ -37,52 +38,110 @@ Examples:
     --judge-config configs/llm_judge.yaml \\
     --subset mcq \\
     --evaluate False
-        """
-    )
-    
+        """)
+
     # LLM Server configuration
-    parser.add_argument("--llm-server", type=str, required=True,
-                        choices=["api", "vllm"],
-                        help="LLM server type: 'api' for API-based models, 'vllm' for VLLM server")
-    parser.add_argument("--llm-config", type=str, required=True,
+    parser.add_argument(
+        "--llm-server",
+        type=str,
+        required=True,
+        choices=["api", "vllm"],
+        help=
+        "LLM server type: 'api' for API-based models, 'vllm' for VLLM server")
+    parser.add_argument("--llm-config",
+                        type=str,
+                        required=True,
                         help="Path to LLM configuration YAML file")
 
     # Dataset configuration
-    parser.add_argument("--subset", type=str, required=True,
+    parser.add_argument("--subset",
+                        type=str,
+                        required=True,
                         choices=["mcq", "openend"],
                         help="Dataset subset: 'mcq' or 'openend'")
+    parser.add_argument(
+        "--domain",
+        type=str,
+        nargs="+",
+        default=None,
+        choices=[
+            "embodied_ai", "game", "text2sql", "openworld_qa", "web",
+            "software_engineering"
+        ],
+        help=
+        "Filter episodes by domain(s). Choices: embodied_ai, game, text2sql, openworld_qa, web, software_engineering. Default: all domains."
+    )
 
     # Baseline/Method configuration
-    parser.add_argument("--method", type=str, default="longcontext",
-                        help=f"Memory method. Available: {', '.join(list_methods())}. Default: longcontext")
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="longcontext",
+        help=
+        f"Memory method. Available: {', '.join(list_methods())}. Default: longcontext"
+    )
 
-    parser.add_argument("--method-config", type=str, default=None,
-                        help="Method-specific configuration as JSON string or path to JSON/YAML file")
+    parser.add_argument(
+        "--method-config",
+        type=str,
+        default=None,
+        help=
+        "Method-specific configuration as JSON string or path to JSON/YAML file"
+    )
 
     # Test configuration
-    parser.add_argument("--test-dir", type=str, default="dataset/test",
-                        help="Directory containing test files. Default: dataset/test")
-    parser.add_argument("--test-file", type=str, default=None,
-                        help="Path to test JSONL file. Auto-determined from test-dir and subset if not specified")
+    parser.add_argument(
+        "--test-dir",
+        type=str,
+        default="dataset/test",
+        help="Directory containing test files. Default: dataset/test")
+    parser.add_argument(
+        "--test-file",
+        type=str,
+        default=None,
+        help=
+        "Path to test JSONL file. Auto-determined from test-dir and subset if not specified"
+    )
 
     # Concurrency configuration
-    parser.add_argument("--max-concurrency-episodes", type=int, default=1,
-                        help="Maximum number of episodes to process concurrently. Default: 1")
-    parser.add_argument("--max-concurrency-questions-per-episode", type=int, default=1,
-                        help="Maximum number of questions per episode to process concurrently. Default: 1")
+    parser.add_argument(
+        "--max-concurrency-episodes",
+        type=int,
+        default=1,
+        help="Maximum number of episodes to process concurrently. Default: 1")
+    parser.add_argument(
+        "--max-concurrency-questions-per-episode",
+        type=int,
+        default=1,
+        help=
+        "Maximum number of questions per episode to process concurrently. Default: 1"
+    )
 
     # Judge configuration
-    parser.add_argument("--judge-config", type=str, default="configs/llm_judge.yaml",
-                        help="Path to judge LLM configuration YAML file. Required when --evaluate True")
-    parser.add_argument("--judge-server", type=str, choices=["api", "vllm"], default="api",
+    parser.add_argument(
+        "--judge-config",
+        type=str,
+        default="configs/llm_judge.yaml",
+        help=
+        "Path to judge LLM configuration YAML file. Required when --evaluate True"
+    )
+    parser.add_argument("--judge-server",
+                        type=str,
+                        choices=["api", "vllm"],
+                        default="api",
                         help="Judge server type (api or vllm). Default: api")
 
     # Evaluation flag
-    parser.add_argument("--evaluate", type=lambda x: x.lower() == 'true', default=True,
-                        help="Whether to evaluate answers after generation. Default: True")
+    parser.add_argument(
+        "--evaluate",
+        type=lambda x: x.lower() == 'true',
+        default=True,
+        help="Whether to evaluate answers after generation. Default: True")
 
     # Output configuration
-    parser.add_argument("--output-dir", type=str, default="results",
+    parser.add_argument("--output-dir",
+                        type=str,
+                        default="results",
                         help="Output directory for results. Default: results")
 
     args = parser.parse_args()
@@ -105,17 +164,23 @@ Examples:
     # Validate method
     available_methods = list_methods()
     if args.method not in available_methods:
-        parser.error(f"Invalid method '{args.method}'. Available methods: {', '.join(available_methods)}")
+        parser.error(
+            f"Invalid method '{args.method}'. Available methods: {', '.join(available_methods)}"
+        )
 
     # Create main LLM client
-    client = ModelClient(config_path=args.llm_config, server_type=args.llm_server)
+    client = ModelClient(config_path=args.llm_config,
+                         server_type=args.llm_server)
     print(f"✅ Initialized LLM client: {client.provider}/{client.model}")
 
     # Create judge client (only needed for evaluation)
     judge_client = None
     if args.evaluate:
-        judge_client = ModelClient(config_path=args.judge_config, server_type=args.judge_server)
-        print(f"✅ Initialized judge client: {judge_client.provider}/{judge_client.model}")
+        judge_client = ModelClient(config_path=args.judge_config,
+                                   server_type=args.judge_server)
+        print(
+            f"✅ Initialized judge client: {judge_client.provider}/{judge_client.model}"
+        )
 
     # Initialize embedding engine from method config
     embedding_engine = None
@@ -141,7 +206,9 @@ Examples:
                         batch_size=embedding_config.get('batch_size', 8),
                         max_length=embedding_config.get('max_length', 512),
                     )
-                    print(f"✅ Initialized embedding engine: {embedding_config.get('model_name')}")
+                    print(
+                        f"✅ Initialized embedding engine: {embedding_config.get('model_name')}"
+                    )
         except Exception as e:
             print(f"⚠️ Warning: Failed to initialize embedding engine: {e}")
 
@@ -154,14 +221,16 @@ Examples:
         max_concurrency_questions=args.max_concurrency_questions_per_episode,
         subset=args.subset,
         embedding_engine=embedding_engine,
+        domains=args.domain,
     )
 
     # Prepare output paths
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_name = client.model.replace("/", "_")
-    subset_suffix = f"_{args.subset}" 
-    method_suffix = f"_{args.method}" 
-    base_filename = f"{model_name}{subset_suffix}{method_suffix}_{timestamp}"
+    subset_suffix = f"_{args.subset}"
+    method_suffix = f"_{args.method}"
+    domain_suffix = f"_{'_'.join(sorted(args.domain))}" if args.domain else ""
+    base_filename = f"{model_name}{subset_suffix}{method_suffix}{domain_suffix}_{timestamp}"
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -170,7 +239,7 @@ Examples:
     results_path = output_dir / f"results_{base_filename}.json"
 
     # Phase 1: Generate answers
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("PHASE 1: GENERATING ANSWERS")
 
     episode_results = interface.run(file_path=args.test_file)
@@ -187,9 +256,9 @@ Examples:
         print("\n⏭️ Skipping evaluation (--evaluate False)")
         return
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("PHASE 2: EVALUATING ANSWERS WITH LLM-AS-JUDGE")
-    print("="*70)
+    print("=" * 70)
 
     # Load original test data to get golden answers and metadata
     original_episodes = {}
@@ -213,7 +282,8 @@ Examples:
         qa_pairs = original_episode.get('qa_pairs', [])
 
         # Match answers with golden answers
-        for i, (predicted_answer, qa_pair) in enumerate(zip(answer_list, qa_pairs)):
+        for i, (predicted_answer,
+                qa_pair) in enumerate(zip(answer_list, qa_pairs)):
             all_qa_results.append({
                 'episode_id': episode_id,
                 'task_type': task_type,
@@ -298,9 +368,14 @@ Examples:
             'timestamp': timestamp,
         },
         'overall': {
-            'total_questions': len(evaluated_results),
-            'avg_score': sum(r['score'] for r in evaluated_results) / len(evaluated_results) if evaluated_results else 0,
-            'accuracy': sum(1 for r in evaluated_results if r['score'] == 1.0) / len(evaluated_results) if evaluated_results else 0,
+            'total_questions':
+            len(evaluated_results),
+            'avg_score':
+            sum(r['score'] for r in evaluated_results) /
+            len(evaluated_results) if evaluated_results else 0,
+            'accuracy':
+            sum(1 for r in evaluated_results if r['score'] == 1.0) /
+            len(evaluated_results) if evaluated_results else 0,
         },
         'by_task_type': task_type_stats,
         'by_domain': domain_stats,

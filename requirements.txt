@@ -5,7 +5,7 @@
 #   pip install -r requirements.txt
 #
 # The constraints file ensures vLLM compatibility on Python 3.11+
--c constraints.txt
+# -c constraints.txt
 
 # LLM API clients
 anthropic>=0.18.0

@@ -2,16 +2,15 @@
 Method Registry - Register and retrieve different memory methods
 """
 
-from typing import Dict, Type, Any, Optional
+import inspect
+from typing import Any, Dict, Optional, Type
 
+from src.method.ama_agent import AMAAgentMethod
 from src.method.base_method import BaseMethod
 from src.method.bm25 import BM25Method
+from src.method.csr import CSRMethod
 from src.method.embedding_mem import EmbeddingMethod
 from src.method.longcontext import LongContextMethod
-from src.method.ama_agent import AMAAgentMethod
-
-import inspect
-
 
 # Registry of available methods
 _METHOD_REGISTRY: Dict[str, Type[BaseMethod]] = {
@@ -19,6 +18,7 @@ _METHOD_REGISTRY: Dict[str, Type[BaseMethod]] = {
     "embedding": EmbeddingMethod,
     "longcontext": LongContextMethod,
     "ama_agent": AMAAgentMethod,
+    "csr": CSRMethod,
 }
 
 
@@ -31,7 +31,8 @@ def register_method(name: str, method_class: Type[BaseMethod]) -> None:
         method_class: Class implementing BaseMethod interface
     """
     if not issubclass(method_class, BaseMethod):
-        raise ValueError(f"Method class must inherit from BaseMethod, got {method_class}")
+        raise ValueError(
+            f"Method class must inherit from BaseMethod, got {method_class}")
 
     _METHOD_REGISTRY[name] = method_class
     print(f"✅ Registered method: {name}")
@@ -53,12 +54,13 @@ def get_method(name: str, **kwargs) -> BaseMethod:
     """
     if name not in _METHOD_REGISTRY:
         available = ", ".join(_METHOD_REGISTRY.keys())
-        raise ValueError(f"Method '{name}' not found. Available methods: {available}")
+        raise ValueError(
+            f"Method '{name}' not found. Available methods: {available}")
 
     method_class = _METHOD_REGISTRY[name]
 
     # Filter kwargs based on method's __init__ signature
-    
+
     init_params = inspect.signature(method_class.__init__).parameters
     filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_params}
 
@@ -90,6 +92,7 @@ def get_method_class(name: str) -> Type[BaseMethod]:
     """
     if name not in _METHOD_REGISTRY:
         available = ", ".join(_METHOD_REGISTRY.keys())
-        raise ValueError(f"Method '{name}' not found. Available methods: {available}")
+        raise ValueError(
+            f"Method '{name}' not found. Available methods: {available}")
 
     return _METHOD_REGISTRY[name]
