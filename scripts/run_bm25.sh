@@ -23,7 +23,8 @@ python src/run.py \
   --llm-config "$MODEL_CONFIG" \
   --subset openend \
   --method bm25 \
-  --num-episodes 10 \
+  --num-episodes 2 \
+  --method-config configs/method_configs/bm25_config.json \
   --test-dir dataset/test \
   --output-dir results/bm25 \
   --max-concurrency-episodes 1 \

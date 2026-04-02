@@ -15,9 +15,12 @@
 BM25 Method - Uses BM25 retrieval for memory construction and retrieval
 """
 
+import json
 import time
-from dataclasses import dataclass
-from typing import Any, List
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any, List, Optional
 
 from rank_bm25 import BM25Okapi
 
@@ -81,6 +84,7 @@ class BM25Method(BaseMethod):
         config_path: str = None,
         embedding_engine: Any = None,
         client: Any = None,
+        output_file: Optional[str] = None,
     ):
         """
         Initialize BM25 method.
@@ -92,17 +96,39 @@ class BM25Method(BaseMethod):
             client: ModelClient instance used for TTFT measurement (optional).
                     When provided, memory_retrieve issues a streaming 1-token
                     probe after retrieval to record latency comparable to CSR.
+            output_file: Path to a JSONL file where inference records will be
+                         written incrementally. Can also be set via config_path.
         """
 
         # Load config if provided
         if config_path:
             config = self._load_config(config_path)
             top_k = config.get('top_k', top_k)
+            output_file = config.get('output_file', output_file)
+
+        # Stamp output_file with current time so each run produces a unique file
+        if output_file is not None:
+            p = Path(output_file)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_file = str(p.with_stem(f'{p.stem}_{timestamp}'))
 
         self.top_k = top_k
         self.embedding_engine = embedding_engine  # Not used, for compatibility
         self.client = client
         self._tokenizer = None  # Loaded lazily on first probe
+        self.output_file = output_file  # Optional JSON Lines output file
+
+    def _write_record_to_file(self, record: BM25InferenceRecord) -> None:
+        """Write a single inference record to the output file in JSONL format."""
+        if self.output_file is None:
+            return
+        try:
+            Path(self.output_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(self.output_file, 'a') as f:
+                json.dump(asdict(record), f)
+                f.write('\n')
+        except Exception as e:
+            print(f'[BM25] Warning: failed to write record to {self.output_file}: {e}')
 
     def _get_tokenizer(self) -> Any:
         """Return the model tokenizer, loading from HuggingFace Hub on first call."""
@@ -276,6 +302,7 @@ class BM25Method(BaseMethod):
         qa_index = len(memory.inference_records)
         record = self._measure_ttft(retrieved_context, question, qa_index, t0)
         memory.inference_records.append(record)
+        self._write_record_to_file(record)
 
         if record.ttft > 0.0:
             print(f"[BM25] qa={record.qa_index}"

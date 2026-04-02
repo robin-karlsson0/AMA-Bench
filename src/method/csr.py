@@ -39,8 +39,11 @@ Requirements
   - transformers installed for accurate token counting
 """
 
+import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any, List, Optional
 
 from src.method.base_method import BaseMethod
@@ -128,21 +131,38 @@ class CSRMethod(BaseMethod):
         config_path: Optional[str] = None,
         client: Any = None,
         embedding_engine: Any = None,
+        output_file: Optional[str] = None,
     ) -> None:
         """
         Parameters
         ----------
         config_path : str, optional
-            Path to a YAML/JSON config file (reserved for future extensions;
-            no keys are consumed at present).
+            Path to a YAML/JSON config file containing CSR parameters
+            (e.g. output_file for incremental record export).
         client : ModelClient, optional
             AMA-Bench ModelClient instance used for warm-up calls and TTFT
             measurement. Must be provided for CSR functionality.
         embedding_engine : Any, optional
             Accepted for registry-kwarg compatibility; not used.
+        output_file : str, optional
+            Path to a JSON file where inference records will be written
+            incrementally (one record per line in JSONL format). If None,
+            records are only kept in memory. Can also be specified in config_path.
         """
+        # Load config if provided
+        if config_path:
+            config = self._load_config(config_path)
+            output_file = config.get('output_file', output_file)
+
+        # Stamp output_file with current time so each run produces a unique file
+        if output_file is not None:
+            p = Path(output_file)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_file = str(p.with_stem(f'{p.stem}_{timestamp}'))
+
         self.client = client  # ModelClient instance
         self._tokenizer = None  # Loaded lazily on first probe
+        self.output_file = output_file  # Optional JSON Lines output file
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -246,6 +266,25 @@ class CSRMethod(BaseMethod):
         if tokenizer is not None:
             return len(tokenizer.encode(text, add_special_tokens=False))
         return len(text.split())
+
+    def _write_record_to_file(self, record: CSRInferenceRecord) -> None:
+        """
+        Write a single inference record to the output file in JSONL format.
+
+        Each record is written as a single JSON object on its own line.
+        If output_file is not set, this is a no-op.
+        """
+        if self.output_file is None:
+            return
+        try:
+            Path(self.output_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(self.output_file, "a") as f:
+                json.dump(asdict(record), f)
+                f.write("\n")
+        except Exception as e:
+            print(
+                f"[CSR] Warning: failed to write record to {self.output_file}: {e}"
+            )
 
     def _measure_ttft(
         self,
@@ -353,6 +392,7 @@ class CSRMethod(BaseMethod):
         qa_index = len(memory.inference_records)
         record = self._measure_ttft(x_static, question, qa_index)
         memory.inference_records.append(record)
+        self._write_record_to_file(record)
 
         if record.ttft > 0.0:
             print(f"[CSR] qa={record.qa_index}"

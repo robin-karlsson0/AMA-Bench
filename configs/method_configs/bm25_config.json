@@ -1,4 +1,5 @@
 {
   "top_k": 10,
-  "embedding_engine": null
+  "embedding_engine": null,
+  "output_file": "results/bm25/inference_records.jsonl"
 }
