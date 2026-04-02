@@ -29,5 +29,4 @@ python src/run.py \
   --judge-config "$JUDGE_CONFIG" \
   --judge-server vllm \
   --evaluate "$EVALUATE" \
-  ${DOMAIN:+--domain $DOMAIN} \
-  | tee exp_csr_stdout.txt
+  ${DOMAIN:+--domain $DOMAIN}
