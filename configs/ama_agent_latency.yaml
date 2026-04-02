@@ -1,0 +1,28 @@
+# AMA-Agent Latency Measurement Configuration
+# Inherits all AMA-Agent settings; adds output_file for JSONL latency records.
+
+retrieval_mode: "bm25"  # Options: "none", "bm25", "llm", "embed"
+temperature: 0
+max_tokens: 32000
+chunk_size: 8192
+enable_tools: true
+causal: false
+
+# Model configuration (will be overridden by LLM config if using vLLM)
+model: "Qwen/Qwen3-32B"
+base_url: "http://localhost:8002/v1"
+api_key: "EMPTY"
+
+# Embedding engine configuration
+embedding_engine:
+  model_name: "Qwen/Qwen3-Embedding-4B"
+  base_url: "http://localhost:8003/v1"
+  api_key: "EMPTY"
+  batch_size: 8
+  max_length: 512
+
+# Path to output file for inference records (JSONL format)
+# Each record is written incrementally: one JSON object per line
+# Contains: qa_index, online_latency, total_construction_time, num_turns,
+#           avg_construction_time_per_turn, retrieve_ttft, retrieve_prompt_tokens
+output_file: "results/ama_agent_latency/inference_records.jsonl"

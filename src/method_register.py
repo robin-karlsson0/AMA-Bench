@@ -10,6 +10,7 @@ from src.method.base_method import BaseMethod
 from src.method.bm25 import BM25Method
 from src.method.csr import CSRMethod
 from src.method.embedding_mem import EmbeddingMethod
+from src.method.latency_ama_agent import LatencyTrackingAMAAgent
 from src.method.longcontext import LongContextMethod
 
 # Registry of available methods
@@ -18,6 +19,7 @@ _METHOD_REGISTRY: Dict[str, Type[BaseMethod]] = {
     "embedding": EmbeddingMethod,
     "longcontext": LongContextMethod,
     "ama_agent": AMAAgentMethod,
+    "ama_agent_latency": LatencyTrackingAMAAgent,
     "csr": CSRMethod,
 }
 
