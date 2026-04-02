@@ -69,7 +69,8 @@ class MemoryQAInterface:
         # Resolve CLI domain names to dataset domain strings (case-insensitive set)
         if domains:
             self.domain_filter: Optional[set] = {
-                self._DOMAIN_MAP[d.lower()] for d in domains
+                self._DOMAIN_MAP[d.lower()]
+                for d in domains
             }
         else:
             self.domain_filter = None
@@ -101,7 +102,7 @@ class MemoryQAInterface:
             action = step.get("action", "")
             observation = step.get("observation", "")
 
-            text_parts.append(f"Step {turn_idx}:")
+            text_parts.append(f"Turn {turn_idx}:")
             text_parts.append(f"  Action: {action}")
             text_parts.append(f"  Observation: {observation}")
 
@@ -323,7 +324,9 @@ Answers:"""
             'reasoning_trace': reasoning_trace,
         }
 
-    def run(self, file_path: str) -> List[Dict[str, Any]]:
+    def run(self,
+            file_path: str,
+            num_episodes: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Process a single JSONL file containing multiple episodes.
         Each episode contains multiple QA pairs.
@@ -353,8 +356,14 @@ Answers:"""
 
         # Apply domain filter if requested
         if self.domain_filter is not None:
-            episodes = [e for e in episodes if e.get('domain') in self.domain_filter]
+            episodes = [
+                e for e in episodes if e.get('domain') in self.domain_filter
+            ]
             print(f"Domain filter: {sorted(self.domain_filter)}")
+
+        # Optionally limit the number of episodes
+        if num_episodes is not None:
+            episodes = episodes[:num_episodes]
 
         print(f"Total episodes: {len(episodes)}")
         print(
