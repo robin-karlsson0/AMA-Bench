@@ -96,6 +96,13 @@ Examples:
         default="dataset/test",
         help="Directory containing test files. Default: dataset/test")
     parser.add_argument(
+        "--num-episodes",
+        type=int,
+        default=None,
+        help=
+        "Limit the number of episodes to process (e.g. 1 for quick testing). Default: all episodes"
+    )
+    parser.add_argument(
         "--test-file",
         type=str,
         default=None,
@@ -242,7 +249,8 @@ Examples:
     print("\n" + "=" * 70)
     print("PHASE 1: GENERATING ANSWERS")
 
-    episode_results = interface.run(file_path=args.test_file)
+    episode_results = interface.run(file_path=args.test_file,
+                                    num_episodes=args.num_episodes)
 
     # Save answers to JSONL
     with open(answers_path, 'w') as f:

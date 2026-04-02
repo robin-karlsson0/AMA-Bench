@@ -289,23 +289,23 @@ class CSRMethod(BaseMethod):
         underlying = self.client.client
 
         t0 = time.perf_counter()
-        stream = underlying.chat.completions.create(
-            model=self.client.model,
-            messages=[{
-                "role": "user",
-                "content": probe_prompt
-            }],
-            max_tokens=1,
-            temperature=0.0,
-            stream=True,
-        )
-
         ttft = 0.0
-        for chunk in stream:
-            content = chunk.choices[0].delta.content if chunk.choices else None
-            if content is not None and content != "":
-                ttft = time.perf_counter() - t0
-                break
+        with underlying.chat.completions.create(
+                model=self.client.model,
+                messages=[{
+                    "role": "user",
+                    "content": probe_prompt
+                }],
+                max_tokens=1,
+                temperature=0.0,
+                stream=True,
+        ) as stream:
+            for chunk in stream:
+                content = chunk.choices[
+                    0].delta.content if chunk.choices else None
+                if content is not None and content != "":
+                    ttft = time.perf_counter() - t0
+                    break
         if ttft == 0.0:
             ttft = time.perf_counter() - t0
 
