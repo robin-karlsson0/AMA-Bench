@@ -22,11 +22,10 @@ python src/run.py \
   --llm-server vllm \
   --llm-config "$MODEL_CONFIG" \
   --subset openend \
-  --method csr \
-  --num-episodes 2 \
-  --method-config configs/method_configs/csr_config.yaml \
+  --method bm25 \
+  --num-episodes 10 \
   --test-dir dataset/test \
-  --output-dir results/csr \
+  --output-dir results/bm25 \
   --max-concurrency-episodes 1 \
   --max-concurrency-questions-per-episode 1 \
   --judge-config "$JUDGE_CONFIG" \

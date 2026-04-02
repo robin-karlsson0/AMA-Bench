@@ -1,5 +1,5 @@
 #!/bin/bash
-# CSR experiment run script.
+# AMA Agent experiment run script.
 # Assumes the vLLM inference server is already running with --enable-prefix-caching.
 # Questions within each episode are processed sequentially (required for KV-cache prefix chaining).
 
@@ -22,11 +22,11 @@ python src/run.py \
   --llm-server vllm \
   --llm-config "$MODEL_CONFIG" \
   --subset openend \
-  --method csr \
-  --num-episodes 2 \
-  --method-config configs/method_configs/csr_config.yaml \
+  --method ama_agent \
+  --num-episodes 10 \
+  --method-config configs/ama_agent.yaml \
   --test-dir dataset/test \
-  --output-dir results/csr \
+  --output-dir results/ama_agent \
   --max-concurrency-episodes 1 \
   --max-concurrency-questions-per-episode 1 \
   --judge-config "$JUDGE_CONFIG" \
