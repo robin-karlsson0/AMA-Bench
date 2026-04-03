@@ -150,9 +150,13 @@ class CSRMethod(BaseMethod):
             records are only kept in memory. Can also be specified in config_path.
         """
         # Load config if provided
+        temperature = 0.0
+        seed = None
         if config_path:
             config = self._load_config(config_path)
             output_file = config.get('output_file', output_file)
+            temperature = float(config.get('temperature', 0.0))
+            seed = config.get('seed', None)
 
         # Stamp output_file with current time so each run produces a unique file
         if output_file is not None:
@@ -161,6 +165,8 @@ class CSRMethod(BaseMethod):
             output_file = str(p.with_stem(f'{p.stem}_{timestamp}'))
 
         self.client = client  # ModelClient instance
+        self.temperature = temperature  # Sampling temperature for vLLM calls
+        self.seed = seed  # Random seed for vLLM calls (None = no seed)
         self._tokenizer = None  # Loaded lazily on first probe
         self.output_file = output_file  # Optional JSON Lines output file
 
@@ -227,7 +233,8 @@ class CSRMethod(BaseMethod):
             # retries since warm-up is best-effort for these backends.
             for k in range(len(x_chunks)):
                 prompt = self._assemble_x_static(x_pre, x_chunks[:k + 1])
-                self.client.query(prompt, max_tokens=1, temperature=0.0)
+                self.client.query(prompt, max_tokens=1, temperature=self.temperature,
+                                  seed=self.seed)
             return
         underlying = self.client.client
         for k in range(len(x_chunks)):
@@ -239,7 +246,8 @@ class CSRMethod(BaseMethod):
                     "content": prompt
                 }],
                 max_tokens=1,
-                temperature=0.0,
+                temperature=self.temperature,
+                **(({"seed": self.seed}) if self.seed is not None else {}),
             )
 
     def _get_tokenizer(self) -> Any:
@@ -336,7 +344,8 @@ class CSRMethod(BaseMethod):
                     "content": probe_prompt
                 }],
                 max_tokens=1,
-                temperature=0.0,
+                temperature=self.temperature,
+                **(({"seed": self.seed}) if self.seed is not None else {}),
                 stream=True,
         ) as stream:
             for chunk in stream:

@@ -2,7 +2,12 @@
 # Inherits all AMA-Agent settings; adds output_file for JSONL latency records.
 
 retrieval_mode: "bm25"  # Options: "none", "bm25", "llm", "embed"
-temperature: 0
+# Sampling temperature for vLLM inference calls.
+# Set to 0 for greedy decoding (deterministic); use >0 to estimate variance across runs.
+temperature: 0.7
+# Random seed for vLLM inference calls (null = no seed).
+# Set to an integer (e.g. 42) to make runs reproducible; use different seeds to estimate variance.
+seed: 42
 max_tokens: 32000
 chunk_size: 8192
 enable_tools: true

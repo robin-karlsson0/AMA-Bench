@@ -144,6 +144,8 @@ class LatencyTrackingAMAAgent(AMAAgentMethod):
             'temperature': self.temperature,
             'stream': True,
         }
+        if self.seed is not None:
+            create_kwargs['seed'] = self.seed
         if extra_body is not None:
             create_kwargs['extra_body'] = extra_body
 
@@ -179,6 +181,7 @@ class LatencyTrackingAMAAgent(AMAAgentMethod):
                 prompt,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                seed=self.seed,
             )
             return None, response
 
@@ -193,6 +196,7 @@ class LatencyTrackingAMAAgent(AMAAgentMethod):
             prompt,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            seed=self.seed,
         )
         return None, response
 

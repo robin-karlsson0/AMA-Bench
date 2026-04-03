@@ -58,6 +58,7 @@ class AMAAgentMethod(BaseMethod):
     ):
         config = self._load_config(config_path)
         self.temperature = config.get('temperature', 0)
+        self.seed = config.get('seed', None)
         self.max_tokens = config.get('max_tokens', 8192)
         self.chunk_size = config.get('chunk_size', 8192)
         self.top_k = config.get('top_k', 5)
@@ -71,7 +72,8 @@ class AMAAgentMethod(BaseMethod):
         response = self.client.query(
                 prompt,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=self.max_tokens,
+                seed=self.seed,
             )
         return None, response 
 

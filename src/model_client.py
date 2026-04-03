@@ -105,7 +105,8 @@ class ModelClient:
               temperature: float = 0.0,
               max_tokens: int = 4096,
               max_retries: int = 5,
-              system: Optional[str] = None) -> str:
+              system: Optional[str] = None,
+              seed: Optional[int] = None) -> str:
         """Query model with prompt with retry logic for rate limits."""
         for attempt in range(max_retries):
             try:
@@ -125,6 +126,7 @@ class ModelClient:
                         }],
                         temperature=temperature,
                         max_tokens=max_tokens,
+                        **({"seed": seed} if seed is not None else {}),
                         **(({
                             "extra_body": extra_body
                         }) if extra_body is not None else {}),

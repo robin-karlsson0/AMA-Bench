@@ -1,5 +1,7 @@
 {
   "top_k": 10,
   "embedding_engine": null,
+  "temperature": 0.7,
+  "seed": 42,
   "output_file": "results/bm25/inference_records.jsonl"
 }

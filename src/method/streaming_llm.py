@@ -119,6 +119,8 @@ class StreamingLLMMethod(BaseMethod):
                 )
             self.rolling_window_size = int(rolling)
             self.sink_size = int(config.get("sink_size", 4))
+            self.temperature = float(config.get("temperature", 0.0))
+            self.seed = config.get("seed", None)
             output_file = config.get("output_file", output_file)
         else:
             raise ValueError("[StreamingLLM] config_path is required. "
@@ -263,7 +265,8 @@ class StreamingLLMMethod(BaseMethod):
                     "content": probe_prompt
                 }],
                 max_tokens=1,
-                temperature=0.0,
+                temperature=self.temperature,
+                **(({"seed": self.seed}) if self.seed is not None else {}),
                 stream=True,
         ) as stream:
             for chunk in stream:

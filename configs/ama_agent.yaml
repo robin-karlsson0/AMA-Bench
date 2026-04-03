@@ -3,6 +3,9 @@
 # Method-specific settings for AMA-Agent
 retrieval_mode: "bm25"  # Options: "none", "bm25", "llm", "embed"
 temperature: 0
+# Random seed for vLLM inference calls (null = no seed).
+# Set to an integer (e.g. 42) to make runs reproducible; use different seeds to estimate variance.
+seed: 42
 max_tokens: 32000
 chunk_size: 8192
 enable_tools: true

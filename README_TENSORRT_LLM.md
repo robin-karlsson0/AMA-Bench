@@ -28,7 +28,7 @@ trtllm-serve Qwen/Qwen3-8B \
 curl http://localhost:8000/v1/chat/completions \
     -H "Content-Type: application/json" \
     -d '{
-        "model": "Qwen/Qwen3-8B",
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
         "messages":[{"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": "Where is New York?"}],
         "max_tokens": 1024,

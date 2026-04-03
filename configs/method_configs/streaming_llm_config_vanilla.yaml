@@ -19,4 +19,6 @@
 
 sink_size: 4
 rolling_window_size: 4096
+temperature: 0.7
+seed: 42
 output_file: results/streaming_llm_vanilla/streaming_llm_records.jsonl
