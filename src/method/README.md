@@ -9,6 +9,7 @@ Each method under this directory implements the two-stage `BaseMethod` interface
 | `embedding` | `embedding_mem.py` | Dense retrieval over turn blocks |
 | `ama_agent` | `ama_agent.py` | Agentic chain-of-thought over memory |
 | `csr` | `csr.py` | KV-cache prefix reuse with TTFT measurement |
+| `streaming_llm` | `streaming_llm.py` | Attention sink + rolling window eviction with TTFT measurement |
 
 ---
 
@@ -91,3 +92,96 @@ TTFT values are also printed to stdout as:
 [CSR] qa=0  TTFT: 0.031s  static_tokens: 8412  dynamic_tokens: 47
 ```
 and can be extracted with `grep "\[CSR\]"` from the run log.
+
+---
+
+## StreamingLLM — Attention Sink + Rolling Window
+
+**File:** `streaming_llm.py`  
+**Run flag:** `--method streaming_llm`
+
+### Motivation
+
+StreamingLLM enables infinite-horizon operation by preventing OOM errors from unbounded KV cache growth. Rather than growing the cache indefinitely or recomputing from scratch on eviction, it permanently pins the first few tokens (the *attention sink*) and retains only the most recent `rolling_window_size` tokens in a sliding window. This is included in AMA-Bench as a baseline to empirically demonstrate the accuracy cost of its fundamental limitation: any trajectory content that falls outside the window is permanently forgotten.
+
+### Memory structure after eviction
+
+```
+Full sequence (N tokens, N > sink_size + rolling_window_size)
+├── [0 : sink_size]                   — attention sink, permanently retained
+└── [N - rolling_window_size : N]     — rolling window, most recent turns only
+    ~~~ middle tokens permanently evicted ~~~
+
+x_static = decode(sink_ids) + decode(rolling_ids)
+```
+
+When `N ≤ sink_size + rolling_window_size` no eviction occurs and the method is equivalent to `longcontext`.
+
+### Execution flow
+
+```
+memory_construction(traj_text, task)
+  1. Build X_pre from task string and constraints (identical to CSR).
+  2. Tokenize full sequence: x_pre_ids + traj_section_ids.
+  3. If total > sink_size + rolling_window_size:
+       keep full_ids[:sink_size] ⊕ full_ids[-rolling_window_size:]
+       evict everything in between.
+  4. Decode surviving token IDs back to x_static.
+  5. Print eviction summary (total_tokens, tokens_evicted, eviction_ratio).
+
+memory_retrieve(memory, question)          ← called once per QA pair
+  1. Issue streaming 1-token probe of (x_static + question).
+     Clock stops on first non-empty chunk → TTFT.
+     Note: no prefix KV-cache sharing across requests — the server
+     prefills (sink_size + rolling_window_size + dynamic_tokens) tokens
+     on every call, unlike CSR which prefills only dynamic_tokens.
+  2. Record (qa_index, ttft, static_tokens, dynamic_tokens,
+             total_tokens_original, tokens_evicted, eviction_ratio).
+  3. Return x_static.
+```
+
+### Measured quantities
+
+Each `StreamingLLMInferenceRecord` stores:
+
+| Field | Meaning |
+|---|---|
+| `qa_index` | 0-based QA pair index within the episode |
+| `ttft` | Wall-clock time to first token (seconds) |
+| `static_tokens` | Tokens in x_static = sink_size + rolling_window_size (or N if no eviction) |
+| `dynamic_tokens` | M — tokens in question (prefilled fresh each call) |
+| `total_tokens_original` | N — untruncated episode token count |
+| `tokens_evicted` | N − (sink_size + rolling_window_size), 0 if no eviction |
+| `eviction_ratio` | tokens_evicted / total_tokens_original |
+
+`eviction_ratio` is the primary accuracy-degradation signal: it quantifies what fraction of the episode the model cannot access when answering questions. QA pairs whose answers depend on evicted mid-episode content will degrade proportionally.
+
+### TTFT interpretation and comparison with CSR
+
+In practice, vLLM's prefix caching causes the first QA probe in each episode to pay the full `static_tokens + dynamic_tokens` prefill cost, while subsequent probes within the same episode hit the cached `x_static` prefix and pay only `dynamic_tokens`. This matches CSR's post-warmup behaviour, making steady-state TTFT comparable between the two methods. The structural difference is in **accuracy**, not latency: CSR retains the full trajectory; StreamingLLM does not.
+
+For a latency comparison that reflects the true per-step cost a real robot would pay (no persistent KV session across requests), use only `qa_index == 0` records from sessions where the server was already warm.
+
+### Infrastructure requirements
+
+- Any OpenAI-compatible inference server (vLLM, TensorRT-LLM, etc.); prefix caching is not required and confers no benefit across episodes since each episode has a distinct `x_static`.
+- `rolling_window_size` **must** be set in config; there is no default to prevent silent equivalence with `longcontext`.
+- Questions within an episode may be answered in parallel (`--max-concurrency-questions-per-episode > 1` is safe) since `memory_retrieve` is stateless after construction. Use concurrency=1 for clean per-QA TTFT measurements.
+- The `transformers` tokenizer is used for accurate token-level slicing; without it the fallback is whitespace splitting, which produces approximate eviction boundaries.
+
+### Accessing records after a run
+
+```python
+memory = method.memory_construction(traj_text, task)
+for i, qa_pair in enumerate(qa_pairs):
+    context = method.memory_retrieve(memory, qa_pair["question"])
+    # ...
+
+records = memory.inference_records  # List[StreamingLLMInferenceRecord]
+```
+
+TTFT and eviction values are also printed to stdout as:
+```
+[StreamingLLM] qa=0  TTFT: 0.224s  static_tokens: 517  dynamic_tokens: 60  evicted: 21099 (97.6%)
+```
+and can be extracted with `grep "\[StreamingLLM\]"` from the run log.

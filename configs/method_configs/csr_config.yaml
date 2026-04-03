@@ -3,4 +3,4 @@
 # Path to output file for inference records (JSONL format)
 # Each record is written incrementally: one JSON object per line
 # Contains: qa_index, ttft, static_tokens, dynamic_tokens
-output_file: results/csr_inference_records.jsonl
+output_file: results/csr/csr_inference_records.jsonl

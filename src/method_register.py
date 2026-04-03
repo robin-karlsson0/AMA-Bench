@@ -12,6 +12,7 @@ from src.method.csr import CSRMethod
 from src.method.embedding_mem import EmbeddingMethod
 from src.method.latency_ama_agent import LatencyTrackingAMAAgent
 from src.method.longcontext import LongContextMethod
+from src.method.streaming_llm import StreamingLLMMethod
 
 # Registry of available methods
 _METHOD_REGISTRY: Dict[str, Type[BaseMethod]] = {
@@ -21,6 +22,7 @@ _METHOD_REGISTRY: Dict[str, Type[BaseMethod]] = {
     "ama_agent": AMAAgentMethod,
     "ama_agent_latency": LatencyTrackingAMAAgent,
     "csr": CSRMethod,
+    "streaming_llm": StreamingLLMMethod,
 }
 
 
