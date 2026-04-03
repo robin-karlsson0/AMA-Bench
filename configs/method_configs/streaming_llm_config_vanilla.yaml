@@ -1,0 +1,22 @@
+# StreamingLLM method config
+#
+# sink_size: number of tokens permanently pinned from the start of the full
+#   sequence (task prefix + trajectory) as the attention sink. The paper
+#   recommends 4. Tokens beyond this index are eligible for eviction.
+#
+# rolling_window_size: maximum number of recent tokens retained in the sliding
+#   window. REQUIRED — there is no default to prevent accidental equivalence
+#   with full-context methods (LongContext / CSR). Set this well below the
+#   typical episode token count to ensure eviction occurs. For the embodied_ai
+#   domain, trajectories commonly exceed 8K tokens; set to 4096 or lower to
+#   observe meaningful degradation on mid-episode QA pairs.
+#
+# output_file: path prefix for the JSONL inference records. A timestamp is
+#   appended automatically to avoid overwriting previous runs. Each line is a
+#   JSON object with fields:
+#     qa_index, ttft, static_tokens, dynamic_tokens,
+#     total_tokens_original, tokens_evicted, eviction_ratio
+
+sink_size: 4
+rolling_window_size: 4096
+output_file: results/streaming_llm_vanilla/streaming_llm_records.jsonl

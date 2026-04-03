@@ -7,14 +7,14 @@
 MODEL_CONFIG="configs/qwen3-30B.yaml"
 
 JUDGE_CONFIG="configs/llm_judge.yaml"
-EVALUATE=True
+EVALUATE=False
 
 # Domain filter (optional)
 # Set to one or more space-separated values to restrict evaluation to specific domains.
 # Available: embodied_ai  game  text2sql  openworld_qa  web  software_engineering
 # Example: DOMAIN="game web" bash scripts/run.sh
-DOMAIN="embodied_ai"
-# DOMAIN="embodied_ai game"
+# DOMAIN="embodied_ai"
+DOMAIN="embodied_ai game"
 
 set -e
 
@@ -23,7 +23,6 @@ python src/run.py \
   --llm-config "$MODEL_CONFIG" \
   --subset openend \
   --method bm25 \
-  --num-episodes 2 \
   --method-config configs/method_configs/bm25_config.json \
   --test-dir dataset/test \
   --output-dir results/bm25 \
@@ -33,3 +32,5 @@ python src/run.py \
   --judge-server vllm \
   --evaluate "$EVALUATE" \
   ${DOMAIN:+--domain $DOMAIN}
+
+# --num-episodes 2 \
